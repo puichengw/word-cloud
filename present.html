@@ -196,6 +196,7 @@
   <button id="bL" type="button"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg><span id="bLt">Lock answers</span></button>
   <button id="bC" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg><span>Clear words</span></button>
   <button id="bR" type="button" class="on"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v0M17 20h4M20 17v3"/></svg><span>QR code</span></button>
+  <button id="bS" type="button" class="on" title="Ping sound when an answer arrives"><svg class="i" id="bSi" viewBox="0 0 24 24"></svg><span id="bSt">Sound on</span></button>
   <button id="bF" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg><span>Full screen</span></button>
 </div>
 
@@ -430,6 +431,63 @@ function wake() {
 }
 ['mousemove', 'touchstart', 'keydown', 'click'].forEach(ev => window.addEventListener(ev, wake));
 wake();
+
+/* ---------- ping sound (made by the browser, no audio file needed) ---------- */
+let soundOn = true;
+try { soundOn = localStorage.getItem('wc_sound') !== 'off'; } catch (e) {}
+let audioCtx = null, lastPingAt = 0, answersLoaded = false;
+const PING_NOTES = [880, 988, 1175, 1319];   // a gentle, cheerful set of notes
+
+function getCtx() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { audioCtx = new AC(); } catch (e) { return null; }
+  }
+  if (audioCtx.state === 'suspended') { try { audioCtx.resume(); } catch (e) {} }
+  return audioCtx;
+}
+function ping() {
+  if (!soundOn) return;
+  const t = Date.now();
+  if (t - lastPingAt < 150) return;
+  lastPingAt = t;
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(PING_NOTES[Math.floor(Math.random() * PING_NOTES.length)], now);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.16, now + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(now);
+    o.stop(now + 0.5);
+  } catch (e) {}
+}
+function pingBurst(n) {
+  const k = Math.min(n, 3);
+  for (let i = 0; i < k; i++) setTimeout(ping, i * 170);
+}
+function soundLabel() {
+  $('bSt').textContent = soundOn ? 'Sound on' : 'Sound off';
+  $('bS').classList.toggle('on', soundOn);
+  $('bSi').innerHTML = soundOn
+    ? '<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14"/>'
+    : '<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/>';
+}
+['click', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => { if (soundOn) getCtx(); }));
+$('bS').addEventListener('click', () => {
+  soundOn = !soundOn;
+  try { localStorage.setItem('wc_sound', soundOn ? 'on' : 'off'); } catch (e) {}
+  soundLabel();
+  if (soundOn) { lastPingAt = 0; ping(); }
+  toast(soundOn ? 'Sound is on' : 'Sound is off');
+});
+soundLabel();
 
 $('bQ').addEventListener('click', openQ);
 $('bR').addEventListener('click', () => {
@@ -721,8 +779,12 @@ edb.ref('questions').on('value', snap => {
 });
 
 edb.ref('answers').on('value', snap => {
+  const before = total, beforeQid = curQid;
   allData = snap.val();
   recompute(); renderList();
+  // ping only for NEW visible answers to the question on screen (not on first load, switching or clearing)
+  if (answersLoaded && curQid === beforeQid && total > before) pingBurst(total - before);
+  answersLoaded = true;
 });
 }
 
