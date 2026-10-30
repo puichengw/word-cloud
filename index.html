@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3b5bfd">
+<title>Join the word cloud</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --blue:#3b5bfd; --blue-d:#2c46d6; --ink:#111827; --mute:#6b7280; --line:#e3e7ef; --bg:#f3f5fa; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; min-height:100vh; min-height:100dvh; font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+
+  .top { background:linear-gradient(135deg,#3b5bfd 0%,#6d4bfd 100%); color:#fff; padding:calc(16px + env(safe-area-inset-top)) 20px 68px; display:flex; align-items:center; justify-content:space-between; }
+  .brand { font-weight:800; font-size:1.05rem; letter-spacing:-.01em; }
+  .live { display:flex; align-items:center; gap:7px; font-size:.78rem; font-weight:600; background:rgba(255,255,255,.18); padding:6px 12px; border-radius:999px; }
+  .live i { width:8px; height:8px; border-radius:50%; background:#4ade80; animation:pulse 1.8s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)} 70%{box-shadow:0 0 0 8px rgba(74,222,128,0)} 100%{box-shadow:0 0 0 0 rgba(74,222,128,0)} }
+
+  main { max-width:520px; margin:-46px auto 0; padding:0 16px 48px; }
+  .card { background:#fff; border-radius:20px; padding:26px 22px; box-shadow:0 12px 32px rgba(40,50,120,.12); margin-bottom:16px; }
+  .center { text-align:center; padding:44px 24px; }
+  .center h2 { margin:18px 0 8px; font-size:1.3rem; font-weight:800; }
+  .center p { margin:0; color:var(--mute); line-height:1.5; }
+
+  .dots { display:flex; justify-content:center; gap:8px; }
+  .dots span { width:12px; height:12px; border-radius:50%; background:var(--blue); animation:bounce 1.2s infinite ease-in-out; }
+  .dots span:nth-child(2) { animation-delay:.15s; background:#6d4bfd; }
+  .dots span:nth-child(3) { animation-delay:.3s; background:#e11d74; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(.6);opacity:.5} 40%{transform:scale(1);opacity:1} }
+
+  .tag { display:inline-block; background:#eef2ff; color:var(--blue); font-size:.72rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; padding:6px 11px; border-radius:999px; }
+  h1 { margin:14px 0 20px; font-size:1.55rem; line-height:1.25; font-weight:800; letter-spacing:-.02em; overflow-wrap:anywhere; }
+
+  .field { position:relative; }
+  .field input { width:100%; font:500 1.05rem Inter,system-ui,sans-serif; padding:16px 60px 16px 16px; border:2px solid var(--line); border-radius:12px; outline:none; color:var(--ink); background:#fff; }
+  .field input:focus { border-color:var(--blue); box-shadow:0 0 0 4px rgba(59,91,253,.15); }
+  .field input:disabled { background:#f3f4f6; color:var(--mute); }
+  #cnt { position:absolute; right:14px; top:50%; transform:translateY(-50%); font-size:.75rem; color:var(--mute); font-weight:600; }
+  button.submit { width:100%; margin-top:12px; padding:16px; border:0; border-radius:12px; background:var(--blue); color:#fff; font:700 1.05rem Inter,system-ui,sans-serif; cursor:pointer; transition:background .15s, transform .05s; }
+  button.submit:hover:not(:disabled) { background:var(--blue-d); }
+  button.submit:active:not(:disabled) { transform:scale(.99); }
+  button.submit:disabled { background:#cfd6f7; cursor:default; }
+  #hint { margin:14px 0 0; text-align:center; color:var(--mute); font-size:.9rem; }
+  #hint.done { color:#059669; font-weight:600; }
+
+  .card h3 { margin:0 0 12px; font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--mute); }
+  .chip { display:inline-block; background:#eef2ff; color:var(--blue-d); font-weight:600; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0; font-size:.95rem; overflow-wrap:anywhere; animation:in .25s ease-out; }
+  @keyframes in { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:scale(1)} }
+
+  #toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translate(-50%,20px); background:#111827; color:#fff; padding:11px 18px; border-radius:999px; font-size:.92rem; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; max-width:90vw; text-align:center; }
+  #toast.on { opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand" id="brand">Live Word Cloud</div>
+  <div class="live"><i></i>Live</div>
+</header>
+
+<main>
+  <section id="wait" class="card center">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <h2>Waiting for the host</h2>
+    <p>The question will appear here automatically.<br>Please keep this page open.</p>
+  </section>
+
+  <section id="live" hidden>
+    <div class="card">
+      <span class="tag">Word cloud</span>
+      <h1 id="q"></h1>
+      <form id="f" autocomplete="off">
+        <div class="field">
+          <input id="w" maxlength="30" placeholder="Type your answer" enterkeyhint="send" aria-label="Your answer">
+          <span id="cnt">0/30</span>
+        </div>
+        <button class="submit" id="btn" type="submit" disabled>Submit</button>
+      </form>
+      <p id="hint"></p>
+    </div>
+    <div class="card" id="mine" hidden>
+      <h3>Your answers</h3>
+      <div id="chips"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const BRAND = "Live Word Cloud";   // change this text to your own title, e.g. your company name
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCPgicpEFcqIzThkG0VIr8e3TS9XxVHAIA",
+  authDomain: "eiger12-m2.firebaseapp.com",
+  databaseURL: "https://eiger12-m2-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "eiger12-m2",
+  storageBucket: "eiger12-m2.firebasestorage.app",
+  messagingSenderId: "890760361966",
+  appId: "1:890760361966:web:695027657d5596b6b040ff",
+  measurementId: "G-EB6W56Y1HW"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const $ = id => document.getElementById(id);
+
+$('brand').textContent = BRAND;
+document.title = BRAND;
+
+/* ===== PROFANITY FILTER (same block in index.html and present.html) ===== */
+// Whole words. Endings such as -s, -ed, -ing are also caught.
+const BAD_WORDS = new Set([
+  // English
+  'ass', 'arse', 'arsehole', 'asshole', 'assholes', 'dumbass', 'jackass', 'smartass', 'fatass',
+  'dick', 'dickhead', 'cock', 'cocksucker', 'prick', 'pussy', 'slut', 'twat', 'wank', 'wanker', 'tits',
+  'cunt', 'bollocks', 'piss', 'porn', 'porno', 'retard', 'fag', 'kike', 'nigga', 'niggas', 'niggers',
+  'wtf', 'stfu', 'fck', 'fuk', 'fuq', 'phuck',
+  // Malay / Indonesian / Chinese-dialect words commonly used in Malaysia
+  'babi', 'anjing', 'sial', 'sialan', 'celaka', 'bangsat', 'keparat', 'bedebah', 'puki', 'pukimak', 'pukima',
+  'pantat', 'kote', 'konek', 'butoh', 'pelir', 'lancau', 'lancao', 'lanciau', 'cibai', 'chibai', 'cheebai',
+  'kanina', 'knn', 'kns', 'sundal', 'jalang', 'lonte', 'pondan', 'bapok', 'mampus', 'bodoh', 'tolol',
+  'goblok', 'bajingan', 'kontol', 'ngentot', 'memek', 'keling'
+]);
+// Strong roots, caught even inside longer words (e.g. "motherfucker", "bullshit").
+const BAD_ROOTS = ['fuck', 'shit', 'bitch', 'whore', 'nigger', 'faggot', 'bastard', 'bollock', 'cocksuck',
+  'pukimak', 'cibai', 'bangsat', 'keparat', 'celaka', 'sundal', 'lancau', 'lancao', 'lanciau', 'kontol', 'ngentot', 'haramjadah'];
+const BAD_PHRASES = ['lanjiao', 'haramjadah'];   // caught even when typed as two words
+const GOOD_WORDS = new Set(['pukis']);           // innocent words that look like a blocked one
+const _LEET = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's' };
+const _badCache = {};
+function _forms(t) {
+  return [t, t.replace(/(.)\1{2,}/g, '$1'), t.replace(/(.)\1{2,}/g, '$1$1')];
+}
+function _isBadToken(m) {
+  if (!m || GOOD_WORDS.has(m)) return false;
+  for (const f of _forms(m)) {
+    if (BAD_WORDS.has(f)) return true;
+    for (const suf of ['s', 'ed', 'ing', 'nya']) {
+      if (f.length > suf.length + 2 && f.endsWith(suf) && BAD_WORDS.has(f.slice(0, -suf.length))) return true;
+    }
+    if (BAD_ROOTS.some(r => f.indexOf(r) !== -1)) return true;
+  }
+  return false;
+}
+function isBad(text) {
+  const key = String(text);
+  if (Object.prototype.hasOwnProperty.call(_badCache, key)) return _badCache[key];
+  let s = key.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  s = s.replace(/([a-z0-9])[!|]([a-z0-9])/g, '$1i$2');
+  const raw = s.split(/[^a-z0-9@$]+/).filter(Boolean);
+  const toks = [];
+  let run = [];
+  const flush = () => { if (run.length >= 3) toks.push(run.join('')); else run.forEach(x => toks.push(x)); run = []; };
+  raw.forEach(t => { if (t.length === 1) run.push(t); else { flush(); toks.push(t); } });
+  flush();
+  const maps = toks.map(t => t.replace(/[013457@$]/g, c => _LEET[c]).replace(/[^a-z]/g, ''));
+  let bad = maps.some(_isBadToken);
+  if (!bad) { const all = maps.join(''); bad = BAD_PHRASES.some(p => all.indexOf(p) !== -1); }
+  _badCache[key] = bad;
+  return bad;
+}
+/* ===== END PROFANITY FILTER ===== */
+
+let cur = null;      // current question {qid, text, max}
+let mine = [];       // this person's answers for the current question
+let sending = false;
+
+function storeKey() { return 'wc2_' + cur.qid + '_' + (cur.round || 0); }
+function loadMine() {
+  try { const a = JSON.parse(localStorage.getItem(storeKey()) || '[]'); return Array.isArray(a) ? a : []; }
+  catch (e) { return []; }
+}
+function saveMine() { try { localStorage.setItem(storeKey(), JSON.stringify(mine)); } catch (e) {} }
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 2400);
+}
+
+function show(which) {
+  $('wait').hidden = which !== 'wait';
+  $('live').hidden = which !== 'live';
+}
+
+function renderMine() {
+  const box = $('chips');
+  box.innerHTML = '';
+  mine.forEach(w => {
+    const s = document.createElement('span');
+    s.className = 'chip';
+    s.textContent = w;
+    box.appendChild(s);
+  });
+  $('mine').hidden = mine.length === 0;
+}
+
+function refresh() {
+  if (!cur) return;
+  const max = cur.max;
+  const closed = cur.open === false;
+  const left = max > 0 ? max - mine.length : Infinity;
+  const done = left <= 0;
+  const hasText = $('w').value.trim().length > 0;
+  $('w').disabled = done || closed;
+  $('btn').disabled = closed || done || sending || !hasText;
+  $('btn').textContent = closed ? 'Answers closed' : (done ? 'All answers sent' : 'Submit');
+  const hint = $('hint');
+  hint.className = (done && !closed) ? 'done' : '';
+  if (closed) hint.textContent = 'This question is closed. Watch the big screen for the results.';
+  else if (done) hint.textContent = 'Thank you! Watch the big screen for the results.';
+  else if (max > 0) hint.textContent = left + ' of ' + max + ' answer' + (max > 1 ? 's' : '') + ' left';
+  else hint.textContent = 'Add as many answers as you like.';
+}
+
+db.ref('current').on('value', snap => {
+  const c = snap.val();
+  if (!c || !c.text) { cur = null; show('wait'); return; }
+  const changed = !cur || cur.qid !== c.qid || (cur.round || 0) !== (c.round || 0);
+  cur = c;
+  $('q').textContent = c.text;
+  if (changed) {
+    mine = loadMine();
+    $('w').value = '';
+    $('cnt').textContent = '0/30';
+  }
+  show('live');
+  renderMine();
+  refresh();
+});
+
+$('w').addEventListener('input', () => {
+  $('cnt').textContent = $('w').value.length + '/30';
+  refresh();
+});
+
+$('f').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!cur || sending || cur.open === false) return;
+  const raw = $('w').value.trim().replace(/\s+/g, ' ');
+  if (!raw) return;
+  if (isBad(raw)) { toast('Please keep your answer respectful. Try another word.'); $('w').focus(); return; }
+  if (cur.max > 0 && mine.length >= cur.max) { refresh(); return; }
+  const word = raw.toLowerCase().slice(0, 30);
+  if (mine.indexOf(word) !== -1) { toast('You already sent that one.'); return; }
+  const qid = cur.qid;
+  sending = true;
+  refresh();
+  db.ref('answers/' + qid).push({ w: word, t: firebase.database.ServerValue.TIMESTAMP })
+    .then(() => {
+      sending = false;
+      if (!cur || cur.qid !== qid) return;
+      mine.push(word);
+      saveMine();
+      $('w').value = '';
+      $('cnt').textContent = '0/30';
+      renderMine();
+      refresh();
+      toast('Answer sent');
+      if (!$('w').disabled) $('w').focus();
+    })
+    .catch(() => {
+      sending = false;
+      refresh();
+      toast('Could not send. Check your internet and try again.');
+    });
+});
+</script>
+</body>
+</html>

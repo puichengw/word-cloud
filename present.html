@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word Cloud - Presenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --blue:#3b5bfd; --blue-d:#2c46d6; --ink:#111827; --mute:#6b7280; --line:#e3e7ef; --bg:#f3f5fa; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden; font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+
+  /* ---- top "Join at" bar ---- */
+  #join { background:linear-gradient(135deg,#3b5bfd 0%,#6d4bfd 100%); color:#fff; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 28px; }
+  .jl { display:flex; align-items:baseline; gap:12px; min-width:0; flex-wrap:wrap; }
+  .jt { font-size:1rem; font-weight:500; opacity:.85; }
+  #jurl { font-size:clamp(1.1rem, 2.2vw, 1.9rem); font-weight:800; letter-spacing:-.01em; overflow-wrap:anywhere; }
+  .jr { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,.18); padding:8px 16px; border-radius:999px; font-weight:600; white-space:nowrap; }
+  .jr b { font-size:1.25rem; font-weight:800; }
+
+  /* ---- stage ---- */
+  #stage { flex:1; display:flex; gap:20px; padding:20px 28px 26px; min-height:0; }
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .tags { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .tag { background:#eef2ff; color:var(--blue); font-size:.72rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; padding:6px 12px; border-radius:999px; }
+  .tag.lock { background:#fee2e2; color:#b91c1c; }
+  .tag[hidden] { display:none; }
+  #qshow { margin:10px 0 16px; min-height:1.2em; font-size:clamp(1.5rem, 3vw, 2.6rem); font-weight:800; line-height:1.2; letter-spacing:-.02em; overflow-wrap:anywhere; }
+  #cloudwrap { flex:1; position:relative; background:#fff; border-radius:22px; box-shadow:0 12px 32px rgba(40,50,120,.10); min-height:0; overflow:hidden; }
+  #cloud { position:absolute; inset:0; }
+  .word { position:absolute; white-space:nowrap; text-align:center; font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; font-weight:800; letter-spacing:-.01em; line-height:1.1; cursor:pointer; user-select:none;
+          transition:left .6s ease, top .6s ease, width .6s ease, font-size .6s ease, transform .15s; animation:pop .45s ease-out; }
+  .word:hover { transform:scale(1.06); }
+  @keyframes pop { from{opacity:0; transform:scale(.6)} to{opacity:1; transform:scale(1)} }
+  #empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; gap:8px; }
+  #empty b { font-size:1.5rem; font-weight:800; }
+  #empty span { color:var(--mute); font-size:1.05rem; }
+  #empty[hidden] { display:none; }
+  #emptyBtn { margin-top:14px; border:0; background:var(--blue); color:#fff; font:700 1rem Inter,system-ui,sans-serif; padding:13px 26px; border-radius:12px; cursor:pointer; }
+  #emptyBtn:hover { background:var(--blue-d); }
+  #emptyBtn[hidden] { display:none; }
+  #hid { position:absolute; left:16px; bottom:14px; font-size:.8rem; font-weight:600; color:var(--mute); background:#f3f4f6; padding:6px 12px; border-radius:999px; z-index:2; }
+  #hid { transition:opacity .4s; }
+  body.idle #hid { opacity:0; }
+  #hid[hidden] { display:none; }
+
+  #qrcol { width:240px; flex:none; }
+  #qrcol.hide { display:none; }
+  .qrcard { background:#fff; border-radius:22px; box-shadow:0 12px 32px rgba(40,50,120,.10); padding:22px 20px; text-align:center; }
+  .qrcard h3 { margin:0 0 14px; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; color:var(--mute); }
+  #qr { display:flex; justify-content:center; }
+  #qr img, #qr canvas { width:100%; max-width:196px; height:auto; }
+  .qrcard p { margin:14px 0 0; font-size:.85rem; color:var(--mute); line-height:1.4; }
+
+  /* ---- floating toolbar ---- */
+  #dock { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); display:flex; align-items:center; gap:2px; background:#111827; padding:6px; border-radius:16px; box-shadow:0 14px 34px rgba(0,0,0,.30); transition:opacity .4s, transform .4s; z-index:20; max-width:96vw; }
+  body.idle #dock { opacity:0; pointer-events:none; transform:translate(-50%,12px); }
+  #dock button { display:flex; align-items:center; gap:8px; background:transparent; color:#e5e7eb; border:0; padding:10px 13px; border-radius:11px; font:600 .88rem Inter,system-ui,sans-serif; cursor:pointer; white-space:nowrap; }
+  #dock button:hover:not(:disabled) { background:rgba(255,255,255,.12); }
+  #dock button:disabled { opacity:.3; cursor:default; }
+  #dock button.on { background:rgba(255,255,255,.2); color:#fff; }
+  #dock .sep { width:1px; height:22px; background:rgba(255,255,255,.2); margin:0 4px; }
+  #cnt { color:#fff; font-weight:700; font-size:.88rem; min-width:48px; text-align:center; }
+  svg.i { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+
+  /* ---- dialogs ---- */
+  .modal { position:fixed; inset:0; background:rgba(17,24,39,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:50; }
+  .modal[hidden] { display:none; }
+  .sheet { position:relative; background:#fff; border-radius:22px; width:100%; max-width:580px; max-height:92vh; overflow:auto; padding:28px; box-shadow:0 30px 70px rgba(0,0,0,.35); }
+  .sheet.wide { max-width:700px; }
+  .sheet.sm { max-width:420px; }
+  .sheet h2 { margin:0 0 6px; font-size:1.35rem; font-weight:800; letter-spacing:-.01em; }
+  .sheet .sub { margin:0 0 6px; color:var(--mute); line-height:1.5; }
+  .x { position:absolute; top:16px; right:16px; width:34px; height:34px; border:0; border-radius:50%; background:#f3f4f6; color:var(--mute); font-size:1.3rem; cursor:pointer; line-height:1; }
+  .x:hover { background:#e5e7eb; }
+  .sheet label { display:block; font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--mute); margin:18px 0 8px; }
+  textarea { width:100%; font:500 1.05rem Inter,system-ui,sans-serif; padding:14px; border:2px solid var(--line); border-radius:12px; resize:vertical; outline:none; color:var(--ink); }
+  textarea:focus { border-color:var(--blue); box-shadow:0 0 0 4px rgba(59,91,253,.15); }
+  .tip { margin:8px 0 0; font-size:.82rem; color:var(--mute); }
+  .seg { display:flex; gap:8px; flex-wrap:wrap; }
+  .seg button { flex:1; min-width:58px; padding:12px 6px; border:2px solid var(--line); background:#fff; border-radius:10px; font:700 .95rem Inter,system-ui,sans-serif; cursor:pointer; color:var(--ink); }
+  .seg button:hover { border-color:#c7d0ff; }
+  .seg button.on { border-color:var(--blue); background:#eef2ff; color:var(--blue); }
+  .btns { display:flex; gap:10px; margin-top:20px; }
+  .primary { flex:1; padding:15px; border:0; border-radius:12px; background:var(--blue); color:#fff; font:700 1.02rem Inter,system-ui,sans-serif; cursor:pointer; }
+  .primary:hover { background:var(--blue-d); }
+  .ghost { padding:15px 22px; border:0; border-radius:12px; background:#f3f4f6; color:var(--ink); font:700 1rem Inter,system-ui,sans-serif; cursor:pointer; }
+  .ghost[hidden] { display:none; }
+  .row { display:flex; gap:10px; margin-top:22px; }
+  .row button { flex:1; padding:13px; border:0; border-radius:11px; font:700 .95rem Inter,system-ui,sans-serif; cursor:pointer; }
+  .row .no { background:#f3f4f6; color:var(--ink); }
+  .row .ok { background:#dc2626; color:#fff; }
+
+  #qlist { list-style:none; margin:16px 0 0; padding:0; }
+  #qlist li { display:flex; align-items:center; gap:12px; padding:12px; border:2px solid var(--line); border-radius:14px; margin-bottom:10px; }
+  #qlist li.live { border-color:var(--blue); background:#f5f7ff; }
+  .num { flex:none; width:30px; height:30px; border-radius:50%; background:#eef2ff; color:var(--blue); font-weight:800; display:flex; align-items:center; justify-content:center; font-size:.9rem; }
+  .qb { flex:1; min-width:0; }
+  .qt { font-weight:700; overflow-wrap:anywhere; }
+  .qm { color:var(--mute); font-size:.82rem; margin-top:2px; }
+  .acts { display:flex; align-items:center; gap:2px; flex:none; }
+  .show { border:0; background:#eef2ff; color:var(--blue); font:700 .85rem Inter,system-ui,sans-serif; padding:8px 14px; border-radius:9px; cursor:pointer; margin-right:6px; }
+  .show:hover { background:#dfe6ff; }
+  .show.on { background:var(--blue); color:#fff; cursor:default; }
+  .ic { width:34px; height:34px; border:0; border-radius:8px; background:transparent; color:var(--mute); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ic:hover { background:#f3f4f6; color:var(--ink); }
+  #qempty { margin:16px 0 0; padding:18px; border:2px dashed var(--line); border-radius:14px; color:var(--mute); text-align:center; }
+  #qempty[hidden] { display:none; }
+  .addbox { margin-top:10px; border-top:1px solid var(--line); }
+  .foot { display:flex; flex-wrap:wrap; gap:6px 20px; margin-top:22px; padding-top:16px; border-top:1px solid var(--line); }
+  .link { background:none; border:0; color:var(--blue); font:600 .88rem Inter,system-ui,sans-serif; cursor:pointer; padding:4px 0; }
+  .link:hover { text-decoration:underline; }
+  .link.danger { color:#dc2626; }
+
+  #toast { position:fixed; left:50%; top:84px; transform:translate(-50%,-12px); background:#111827; color:#fff; padding:11px 20px; border-radius:999px; font-size:.95rem; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:60; max-width:92vw; text-align:center; }
+  #toast.on { opacity:1; transform:translate(-50%,0); }
+
+  @media (max-width: 900px) {
+    #join { padding:12px 16px; }
+    #stage { flex-direction:column; padding:14px 16px 90px; overflow:auto; }
+    #cloudwrap { flex:none; height:60vh; min-height:340px; }
+    #qrcol { width:100%; }
+    #dock button span { display:none; }
+  }
+  @media (max-width: 600px) {
+    #qlist li { flex-wrap:wrap; }
+    .acts { width:100%; justify-content:flex-end; }
+  }
+</style>
+</head>
+<body>
+
+<div id="join">
+  <div class="jl"><span class="jt">Join at</span><span id="jurl"></span></div>
+  <div class="jr"><b id="total">0</b> responses</div>
+</div>
+
+<div id="stage">
+  <div id="main">
+    <div class="tags"><span class="tag" id="qtag">Word cloud</span><span class="tag lock" id="lockb" hidden>Answers closed</span></div>
+    <h1 id="qshow"></h1>
+    <div id="cloudwrap">
+      <div id="cloud"></div>
+      <div id="hid" hidden></div>
+      <div id="empty"><b id="emptyT">No question yet</b><span id="emptyS"></span><button id="emptyBtn" type="button"></button></div>
+    </div>
+  </div>
+  <aside id="qrcol">
+    <div class="qrcard">
+      <h3>Scan to join</h3>
+      <div id="qr"></div>
+      <p id="note" hidden>Open this page from your GitHub link (not from a file on your computer) to get a working QR code.</p>
+    </div>
+  </aside>
+</div>
+
+<div id="dock">
+  <button id="bP" type="button" aria-label="Previous question" title="Previous question (left arrow key)"><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+  <span id="cnt">-</span>
+  <button id="bN" type="button" aria-label="Next question" title="Next question (right arrow key)"><svg class="i" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+  <i class="sep"></i>
+  <button id="bQ" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Questions</span></button>
+  <button id="bL" type="button"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg><span id="bLt">Lock answers</span></button>
+  <button id="bC" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg><span>Clear words</span></button>
+  <button id="bR" type="button" class="on"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v0M17 20h4M20 17v3"/></svg><span>QR code</span></button>
+  <button id="bF" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg><span>Full screen</span></button>
+</div>
+
+<!-- Questions dialog -->
+<div class="modal" id="mq" hidden>
+  <div class="sheet wide">
+    <button class="x" id="mqx" type="button" aria-label="Close">&times;</button>
+    <h2>Questions</h2>
+    <p class="sub">Set up your questions in advance, then move through them during the session. Results are kept for every question.</p>
+    <ul id="qlist"></ul>
+    <div id="qempty">No questions yet. Add your first one below.</div>
+    <div class="addbox">
+      <label for="qin" id="fl">Add a question</label>
+      <textarea id="qin" rows="2" maxlength="200" placeholder="e.g. What one word describes a great leader?"></textarea>
+      <p class="tip" id="tip">Tip: paste several questions, one per line, to add them all at once.</p>
+      <label>Answers per person</label>
+      <div class="seg" id="seg">
+        <button type="button" data-v="1">1</button>
+        <button type="button" data-v="2">2</button>
+        <button type="button" data-v="3">3</button>
+        <button type="button" data-v="5">5</button>
+        <button type="button" data-v="0">Unlimited</button>
+      </div>
+      <div class="btns">
+        <button class="primary" id="pub" type="button">Add question</button>
+        <button class="ghost" id="cancelEdit" type="button" hidden>Cancel</button>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="link" id="csv" type="button">Download results (CSV)</button>
+      <button class="link" id="pf" type="button">Profanity filter: On</button>
+      <button class="link" id="pause" type="button">Show waiting screen</button>
+      <button class="link danger" id="reset" type="button">Start a new session (delete everything)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="modal" id="mc" hidden>
+  <div class="sheet sm">
+    <h2 id="ct"></h2>
+    <p class="sub" id="cb"></p>
+    <div class="row"><button class="no" id="cno" type="button">Cancel</button><button class="ok" id="cok" type="button">OK</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCPgicpEFcqIzThkG0VIr8e3TS9XxVHAIA",
+  authDomain: "eiger12-m2.firebaseapp.com",
+  databaseURL: "https://eiger12-m2-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "eiger12-m2",
+  storageBucket: "eiger12-m2.firebasestorage.app",
+  messagingSenderId: "890760361966",
+  appId: "1:890760361966:web:695027657d5596b6b040ff",
+  measurementId: "G-EB6W56Y1HW"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const TS = firebase.database.ServerValue.TIMESTAMP;
+const $ = id => document.getElementById(id);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+/* ---------- state ---------- */
+let list = [];                       // all questions, in order
+let allData = null;                  // every answer: { qid: { key: {w, t} } }
+let curQid = null, curText = '', curMax = 3, curOpen = true, curRound = 0;
+let counts = {}, keysByWord = {}, total = 0;
+let editingQid = null, maxSel = 3;
+let gotCurrent = false, gotQuestions = false, initDone = false;
+let okFn = null, toastTimer, idleTimer, timer = null;
+const els = {};
+
+/* ===== PROFANITY FILTER (same block in index.html and present.html) ===== */
+// Whole words. Endings such as -s, -ed, -ing are also caught.
+const BAD_WORDS = new Set([
+  // English
+  'ass', 'arse', 'arsehole', 'asshole', 'assholes', 'dumbass', 'jackass', 'smartass', 'fatass',
+  'dick', 'dickhead', 'cock', 'cocksucker', 'prick', 'pussy', 'slut', 'twat', 'wank', 'wanker', 'tits',
+  'cunt', 'bollocks', 'piss', 'porn', 'porno', 'retard', 'fag', 'kike', 'nigga', 'niggas', 'niggers',
+  'wtf', 'stfu', 'fck', 'fuk', 'fuq', 'phuck',
+  // Malay / Indonesian / Chinese-dialect words commonly used in Malaysia
+  'babi', 'anjing', 'sial', 'sialan', 'celaka', 'bangsat', 'keparat', 'bedebah', 'puki', 'pukimak', 'pukima',
+  'pantat', 'kote', 'konek', 'butoh', 'pelir', 'lancau', 'lancao', 'lanciau', 'cibai', 'chibai', 'cheebai',
+  'kanina', 'knn', 'kns', 'sundal', 'jalang', 'lonte', 'pondan', 'bapok', 'mampus', 'bodoh', 'tolol',
+  'goblok', 'bajingan', 'kontol', 'ngentot', 'memek', 'keling'
+]);
+// Strong roots, caught even inside longer words (e.g. "motherfucker", "bullshit").
+const BAD_ROOTS = ['fuck', 'shit', 'bitch', 'whore', 'nigger', 'faggot', 'bastard', 'bollock', 'cocksuck',
+  'pukimak', 'cibai', 'bangsat', 'keparat', 'celaka', 'sundal', 'lancau', 'lancao', 'lanciau', 'kontol', 'ngentot', 'haramjadah'];
+const BAD_PHRASES = ['lanjiao', 'haramjadah'];   // caught even when typed as two words
+const GOOD_WORDS = new Set(['pukis']);           // innocent words that look like a blocked one
+const _LEET = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's' };
+const _badCache = {};
+function _forms(t) {
+  return [t, t.replace(/(.)\1{2,}/g, '$1'), t.replace(/(.)\1{2,}/g, '$1$1')];
+}
+function _isBadToken(m) {
+  if (!m || GOOD_WORDS.has(m)) return false;
+  for (const f of _forms(m)) {
+    if (BAD_WORDS.has(f)) return true;
+    for (const suf of ['s', 'ed', 'ing', 'nya']) {
+      if (f.length > suf.length + 2 && f.endsWith(suf) && BAD_WORDS.has(f.slice(0, -suf.length))) return true;
+    }
+    if (BAD_ROOTS.some(r => f.indexOf(r) !== -1)) return true;
+  }
+  return false;
+}
+function isBad(text) {
+  const key = String(text);
+  if (Object.prototype.hasOwnProperty.call(_badCache, key)) return _badCache[key];
+  let s = key.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  s = s.replace(/([a-z0-9])[!|]([a-z0-9])/g, '$1i$2');
+  const raw = s.split(/[^a-z0-9@$]+/).filter(Boolean);
+  const toks = [];
+  let run = [];
+  const flush = () => { if (run.length >= 3) toks.push(run.join('')); else run.forEach(x => toks.push(x)); run = []; };
+  raw.forEach(t => { if (t.length === 1) run.push(t); else { flush(); toks.push(t); } });
+  flush();
+  const maps = toks.map(t => t.replace(/[013457@$]/g, c => _LEET[c]).replace(/[^a-z]/g, ''));
+  let bad = maps.some(_isBadToken);
+  if (!bad) { const all = maps.join(''); bad = BAD_PHRASES.some(p => all.indexOf(p) !== -1); }
+  _badCache[key] = bad;
+  return bad;
+}
+/* ===== END PROFANITY FILTER ===== */
+
+let filterOn = true;
+try { filterOn = localStorage.getItem('wc_filter') !== 'off'; } catch (e) {}
+
+/* ---------- small helpers ---------- */
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 2600);
+}
+function fail() { toast('Could not save. Check your internet connection.'); }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function idx() { return list.findIndex(q => q.qid === curQid); }
+function totalFor(qid) {
+  const a = allData && allData[qid];
+  if (!a) return 0;
+  let n = 0;
+  Object.keys(a).forEach(k => { const w = a[k] && a[k].w; if (typeof w === 'string' && w && !(filterOn && isBad(w))) n++; });
+  return n;
+}
+
+function ask(title, body, label, fn) {
+  $('ct').textContent = title;
+  $('cb').textContent = body;
+  $('cok').textContent = label;
+  okFn = fn;
+  $('mc').hidden = false;
+}
+$('cok').addEventListener('click', () => { $('mc').hidden = true; const f = okFn; okFn = null; if (f) f(); });
+$('cno').addEventListener('click', () => { $('mc').hidden = true; okFn = null; });
+
+function openQ() { $('mq').hidden = false; renderList(); }
+function closeQ() { $('mq').hidden = true; endEdit(); }
+$('mqx').addEventListener('click', closeQ);
+$('mq').addEventListener('mousedown', e => { if (e.target === $('mq')) closeQ(); });
+
+/* ---------- join link + QR ---------- */
+const joinUrl = location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/, '');
+$('jurl').textContent = joinUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+if (!/^https?:$/.test(location.protocol)) $('note').hidden = false;
+try {
+  new QRCode($('qr'), { text: joinUrl, width: 196, height: 196, correctLevel: QRCode.CorrectLevel.M });
+} catch (e) {
+  $('qr').textContent = '(QR code could not load)';
+}
+
+/* ---------- toolbar behaviour ---------- */
+function wake() {
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 3500);
+}
+['mousemove', 'touchstart', 'keydown', 'click'].forEach(ev => window.addEventListener(ev, wake));
+wake();
+
+$('bQ').addEventListener('click', openQ);
+$('bR').addEventListener('click', () => {
+  const hidden = $('qrcol').classList.toggle('hide');
+  $('bR').classList.toggle('on', !hidden);
+});
+$('bF').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+});
+$('bP').addEventListener('click', () => step(-1));
+$('bN').addEventListener('click', () => step(1));
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeQ(); $('mc').hidden = true; okFn = null; return; }
+  const tag = ((e.target && e.target.tagName) || '').toLowerCase();
+  if (tag === 'textarea' || tag === 'input') return;
+  if (!$('mq').hidden || !$('mc').hidden) return;
+  if (e.key === 'ArrowRight') step(1);
+  else if (e.key === 'ArrowLeft') step(-1);
+});
+
+/* ---------- going live / moving between questions ---------- */
+function goLive(q) {
+  db.ref('current').set({ qid: q.qid, text: q.text, max: q.max, round: q.round || 0, open: q.open !== false }).catch(fail);
+}
+function step(d) {
+  if (!list.length) { toast('Add a question first.'); openQ(); return; }
+  const i = idx();
+  const n = i < 0 ? (d > 0 ? 0 : list.length - 1) : i + d;
+  if (n < 0) { toast('This is the first question.'); return; }
+  if (n >= list.length) { toast('That was the last question.'); return; }
+  goLive(list[n]);
+}
+
+$('bL').addEventListener('click', () => {
+  if (!curQid) { toast('No question is live yet.'); return; }
+  const open = !curOpen;
+  const upd = {};
+  upd['questions/' + curQid + '/open'] = open;
+  upd['current/open'] = open;
+  db.ref().update(upd).then(() => toast(open ? 'Answers are open again' : 'Answers are closed')).catch(fail);
+});
+
+$('bC').addEventListener('click', () => {
+  if (!curQid) { toast('No question is live yet.'); return; }
+  ask('Clear all words?', 'Every answer to this question will be deleted, and everyone can answer it again. Other questions are not affected.', 'Clear words', () => {
+    const round = Date.now(), qid = curQid, upd = {};
+    upd['answers/' + qid] = null;
+    upd['questions/' + qid + '/round'] = round;
+    upd['current/round'] = round;
+    db.ref().update(upd).catch(fail);
+  });
+});
+
+/* ---------- questions dialog: add / edit / reorder / delete ---------- */
+function setSeg(v) {
+  maxSel = v;
+  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', parseInt(b.dataset.v, 10) === v));
+}
+document.querySelectorAll('#seg button').forEach(b => b.addEventListener('click', () => setSeg(parseInt(b.dataset.v, 10))));
+setSeg(3);
+
+function endEdit() {
+  editingQid = null;
+  $('qin').value = '';
+  $('pub').textContent = 'Add question';
+  $('cancelEdit').hidden = true;
+  $('fl').textContent = 'Add a question';
+  $('tip').hidden = false;
+}
+function startEdit(q) {
+  editingQid = q.qid;
+  $('qin').value = q.text;
+  setSeg(q.max);
+  $('pub').textContent = 'Save changes';
+  $('cancelEdit').hidden = false;
+  $('fl').textContent = 'Edit question';
+  $('tip').hidden = true;
+  $('qin').focus();
+}
+$('cancelEdit').addEventListener('click', endEdit);
+
+$('pub').addEventListener('click', () => {
+  const lines = $('qin').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { toast('Please type a question first.'); $('qin').focus(); return; }
+  const upd = {};
+  if (editingQid) {
+    const text = lines.join(' ');
+    upd['questions/' + editingQid + '/text'] = text;
+    upd['questions/' + editingQid + '/max'] = maxSel;
+    if (editingQid === curQid) { upd['current/text'] = text; upd['current/max'] = maxSel; }
+    db.ref().update(upd).then(() => { endEdit(); toast('Question updated'); }).catch(fail);
+    return;
+  }
+  let order = list.reduce((m, q) => Math.max(m, q.order), 0) + 1;
+  lines.forEach(text => {
+    upd['questions/' + newId()] = { text, max: maxSel, order: order++, open: true, round: 0, t: TS };
+  });
+  db.ref().update(upd).then(() => {
+    $('qin').value = '';
+    toast(lines.length === 1 ? 'Question added' : lines.length + ' questions added');
+  }).catch(fail);
+});
+
+function move(qid, d) {
+  const i = list.findIndex(q => q.qid === qid), j = i + d;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const arr = list.slice();
+  const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  const upd = {};
+  arr.forEach((q, n) => { upd['questions/' + q.qid + '/order'] = n + 1; });
+  db.ref().update(upd).catch(fail);
+}
+function delQ(q) {
+  ask('Delete this question?', '"' + q.text + '" and all of its answers will be deleted.', 'Delete', () => {
+    const upd = {};
+    upd['questions/' + q.qid] = null;
+    upd['answers/' + q.qid] = null;
+    if (q.qid === curQid) upd['current'] = null;
+    db.ref().update(upd).catch(fail);
+  });
+}
+
+function ib(path, label, fn) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'ic';
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.innerHTML = '<svg class="i" viewBox="0 0 24 24">' + path + '</svg>';
+  b.addEventListener('click', fn);
+  return b;
+}
+const P_UP = '<path d="M12 19V5M5 12l7-7 7 7"/>';
+const P_DOWN = '<path d="M12 5v14M19 12l-7 7-7-7"/>';
+const P_EDIT = '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>';
+const P_TRASH = '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>';
+
+function renderList() {
+  const ul = $('qlist');
+  ul.innerHTML = '';
+  $('qempty').hidden = list.length > 0;
+  list.forEach((q, i) => {
+    const live = q.qid === curQid;
+    const li = document.createElement('li');
+    if (live) li.className = 'live';
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = i + 1;
+    const body = document.createElement('div');
+    body.className = 'qb';
+    const t = document.createElement('div');
+    t.className = 'qt';
+    t.textContent = q.text;
+    const m = document.createElement('div');
+    m.className = 'qm';
+    const n = totalFor(q.qid);
+    m.textContent = n + (n === 1 ? ' answer' : ' answers') + ' · ' + (q.max > 0 ? q.max + ' per person' : 'unlimited') + (q.open ? '' : ' · closed');
+    body.appendChild(t);
+    body.appendChild(m);
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const show = document.createElement('button');
+    show.type = 'button';
+    show.className = 'show' + (live ? ' on' : '');
+    show.textContent = live ? 'Live' : 'Show';
+    show.addEventListener('click', () => { if (!live) goLive(q); closeQ(); });
+    acts.appendChild(show);
+    acts.appendChild(ib(P_UP, 'Move up', () => move(q.qid, -1)));
+    acts.appendChild(ib(P_DOWN, 'Move down', () => move(q.qid, 1)));
+    acts.appendChild(ib(P_EDIT, 'Edit', () => startEdit(q)));
+    acts.appendChild(ib(P_TRASH, 'Delete', () => delQ(q)));
+    li.appendChild(num);
+    li.appendChild(body);
+    li.appendChild(acts);
+    ul.appendChild(li);
+  });
+}
+
+/* footer actions */
+function csvCell(s) {
+  s = String(s);
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function buildCsv() {
+  const rows = [['Question no.', 'Question', 'Word', 'Count']];
+  list.forEach((q, i) => {
+    const a = (allData && allData[q.qid]) || {};
+    const c = {};
+    Object.keys(a).forEach(k => { const w = a[k] && a[k].w; if (typeof w === 'string' && w && !(filterOn && isBad(w))) c[w] = (c[w] || 0) + 1; });
+    const es = Object.entries(c).sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
+    if (!es.length) rows.push([i + 1, q.text, '(no answers)', 0]);
+    es.forEach(([w, n]) => rows.push([i + 1, q.text, cap(w), n]));
+  });
+  return '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+}
+$('csv').addEventListener('click', () => {
+  if (!list.length) { toast('There are no questions yet.'); return; }
+  const blob = new Blob([buildCsv()], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'word-cloud-results.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+});
+$('pause').addEventListener('click', () => {
+  db.ref('current').remove().then(() => { closeQ(); toast('Participants now see the waiting screen'); }).catch(fail);
+});
+$('reset').addEventListener('click', () => {
+  ask('Start a new session?', 'ALL questions and ALL answers will be permanently deleted. Download the CSV first if you need the results.', 'Delete everything', () => {
+    db.ref().update({ questions: null, answers: null, current: null }).then(() => toast('Everything was cleared')).catch(fail);
+  });
+});
+
+function pfLabel() { $('pf').textContent = 'Profanity filter: ' + (filterOn ? 'On' : 'Off'); }
+$('pf').addEventListener('click', () => {
+  filterOn = !filterOn;
+  try { localStorage.setItem('wc_filter', filterOn ? 'on' : 'off'); } catch (e) {}
+  pfLabel(); recompute(); renderList();
+  toast(filterOn ? 'Profanity filter is on' : 'Profanity filter is off. Everything will be shown.');
+});
+pfLabel();
+
+/* ---------- live data from Firebase ---------- */
+function init() {
+  if (initDone || !gotCurrent || !gotQuestions) return;
+  initDone = true;
+  if (!curQid && list.length === 0) openQ();
+}
+
+function recompute() {
+  const a = (allData && curQid && allData[curQid]) || {};
+  const c = {}, k = {};
+  let n = 0, hid = 0;
+  Object.keys(a).forEach(key => {
+    const w = a[key] && a[key].w;
+    if (typeof w === 'string' && w) {
+      if (filterOn && isBad(w)) { hid++; return; }
+      c[w] = (c[w] || 0) + 1; (k[w] = k[w] || []).push(key); n++;
+    }
+  });
+  counts = c; keysByWord = k; total = n;
+  const h = $('hid');
+  h.hidden = hid === 0;
+  h.textContent = hid + (hid === 1 ? ' answer' : ' answers') + ' hidden by the profanity filter';
+  scheduleRender();
+}
+
+function refreshHeader() {
+  const i = idx();
+  $('qtag').textContent = i >= 0 ? 'Question ' + (i + 1) + ' of ' + list.length : 'Word cloud';
+  $('lockb').hidden = !(curQid && !curOpen);
+  $('cnt').textContent = list.length ? (i >= 0 ? (i + 1) + ' / ' + list.length : '- / ' + list.length) : '-';
+  $('bLt').textContent = curOpen ? 'Lock answers' : 'Unlock answers';
+  $('bL').classList.toggle('on', !!curQid && !curOpen);
+  $('bP').disabled = i <= 0;
+  $('bN').disabled = list.length === 0 || i === list.length - 1;
+}
+
+db.ref('current').on('value', snap => {
+  const c = snap.val();
+  gotCurrent = true;
+  if (!c || !c.text) {
+    curQid = null; curText = ''; curMax = 3; curOpen = true; curRound = 0;
+    $('qshow').textContent = '';
+  } else {
+    curQid = c.qid; curText = c.text; curMax = c.max; curOpen = c.open !== false; curRound = c.round || 0;
+    $('qshow').textContent = c.text;
+  }
+  recompute(); refreshHeader(); renderList(); init();
+});
+
+db.ref('questions').on('value', snap => {
+  const arr = [];
+  snap.forEach(ch => {
+    const v = ch.val();
+    if (v && v.text) arr.push({ qid: ch.key, text: v.text, max: v.max, order: v.order || 0, open: v.open !== false, round: v.round || 0 });
+  });
+  arr.sort((a, b) => a.order - b.order || (a.qid < b.qid ? -1 : 1));
+  list = arr;
+  gotQuestions = true;
+  refreshHeader(); renderList(); scheduleRender(); init();
+});
+
+db.ref('answers').on('value', snap => {
+  allData = snap.val();
+  recompute(); renderList();
+});
+
+/* remove one word (click it in the cloud) */
+function removeWord(word) {
+  const keys = (keysByWord[word] || []).slice();
+  const qid = curQid;
+  if (!keys.length || !qid) return;
+  ask('Remove "' + cap(word) + '"?',
+      keys.length + (keys.length === 1 ? ' answer' : ' answers') + ' with this word will be removed from the cloud.',
+      'Remove',
+      () => { keys.forEach(k => db.ref('answers/' + qid + '/' + k).remove().catch(fail)); });
+}
+
+/* ---------- word cloud ---------- */
+const COLORS = ['#3b5bfd', '#0ea5a4', '#f59e0b', '#e11d74', '#7c3aed', '#10b981', '#ef4444', '#0284c7'];
+const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const measure = document.createElement('canvas').getContext('2d');
+
+function colorFor(w) {
+  let h = 0;
+  for (let i = 0; i < w.length; i++) h = (h * 31 + w.charCodeAt(i)) >>> 0;
+  return COLORS[h % COLORS.length];
+}
+function hit(a, b) { return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y); }
+function scheduleRender() { clearTimeout(timer); timer = setTimeout(render, 120); }
+
+window.addEventListener('resize', scheduleRender);
+if (window.ResizeObserver) new ResizeObserver(scheduleRender).observe($('cloudwrap'));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleRender);
+
+$('emptyBtn').addEventListener('click', () => {
+  if (!list.length) openQ();
+  else if (!curQid) goLive(list[0]);
+});
+
+function render() {
+  const box = $('cloud');
+  $('total').textContent = total;
+  const entries = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 80);
+  const empty = $('empty');
+
+  if (!entries.length) {
+    Object.keys(els).forEach(k => { els[k].remove(); delete els[k]; });
+    const btn = $('emptyBtn');
+    if (curQid) {
+      $('emptyT').textContent = curOpen ? 'Waiting for answers' : 'Answers are closed';
+      $('emptyS').textContent = curOpen ? 'Scan the QR code or open the link at the top to join.' : 'Press "Unlock answers" below to let people answer.';
+      btn.hidden = true;
+    } else if (list.length) {
+      $('emptyT').textContent = 'Ready when you are';
+      $('emptyS').textContent = 'Participants see a waiting screen until you start.';
+      btn.textContent = 'Start question 1';
+      btn.hidden = false;
+    } else {
+      $('emptyT').textContent = 'No questions yet';
+      $('emptyS').textContent = 'Add your questions, then start the first one.';
+      btn.textContent = 'Add questions';
+      btn.hidden = false;
+    }
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  const W = box.clientWidth, H = box.clientHeight;
+  if (W < 80 || H < 80) return;
+  const top = entries[0][1], low = entries[entries.length - 1][1];
+  const maxF = Math.max(44, Math.min(128, H / 3.6, W / 5.5));
+  const minF = Math.max(16, Math.min(24, maxF / 3.2));
+  const asp = Math.min(2.6, Math.max(1, W / H));
+  const pad = 6;
+  const placed = [], seen = {};
+
+  entries.forEach(([word, n]) => {
+    const label = cap(word);
+    const t = top === low ? 0.55 : (n - low) / (top - low);
+    let size = minF + (maxF - minF) * Math.sqrt(t);
+    for (let attempt = 0; attempt < 24; attempt++) {
+      measure.font = '800 ' + size + 'px ' + FONT;
+      const w = Math.ceil(measure.measureText(label).width) + pad * 2;
+      const h = Math.ceil(size * 1.2) + pad;
+      let spot = null;
+      if (w <= W - 12 && h <= H - 12) {
+        for (let i = 0; i < 12000; i++) {
+          const a = i * 0.1, r = 1.5 * a;
+          const x = Math.round(W / 2 + r * Math.cos(a) * asp - w / 2);
+          const y = Math.round(H / 2 + r * Math.sin(a) - h / 2);
+          if (x < 6 || y < 6 || x + w > W - 6 || y + h > H - 6) {
+            if (r > Math.max(W, H) * asp) break;
+            continue;
+          }
+          const rc = { x, y, w, h };
+          if (!placed.some(p => hit(p, rc))) { spot = rc; break; }
+        }
+      }
+      if (spot) {
+        placed.push(spot);
+        let d = els[word];
+        if (!d) {
+          d = document.createElement('div');
+          d.className = 'word';
+          d.addEventListener('click', () => removeWord(word));
+          box.appendChild(d);
+          els[word] = d;
+        }
+        d.textContent = label;
+        d.title = n + (n === 1 ? ' answer' : ' answers') + ' (click to remove)';
+        d.style.left = spot.x + 'px';
+        d.style.top = spot.y + 'px';
+        d.style.width = spot.w + 'px';
+        d.style.fontSize = size + 'px';
+        d.style.color = colorFor(word);
+        seen[word] = 1;
+        return;
+      }
+      size *= 0.9;
+      if (size < 12) return;
+    }
+  });
+
+  Object.keys(els).forEach(k => { if (!seen[k]) { els[k].remove(); delete els[k]; } });
+}
+render();
+</script>
+</body>
+</html>
