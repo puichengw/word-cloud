@@ -50,6 +50,11 @@
   .chip { display:inline-block; background:#eef2ff; color:var(--blue-d); font-weight:600; padding:7px 14px; border-radius:999px; margin:0 8px 8px 0; font-size:.95rem; overflow-wrap:anywhere; animation:in .25s ease-out; }
   @keyframes in { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:scale(1)} }
 
+  #ci { text-transform:uppercase; letter-spacing:.12em; font-weight:700; text-align:center; padding-right:16px; }
+  #cmsg { margin:14px 0 0; text-align:center; color:var(--mute); font-size:.9rem; line-height:1.5; }
+  #cmsg.err { color:#dc2626; font-weight:600; }
+  .brand { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:68%; }
+
   #toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translate(-50%,20px); background:#111827; color:#fff; padding:11px 18px; border-radius:999px; font-size:.92rem; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; max-width:90vw; text-align:center; }
   #toast.on { opacity:1; transform:translate(-50%,0); }
 </style>
@@ -62,6 +67,18 @@
 </header>
 
 <main>
+  <section id="codecard" class="card" hidden>
+    <span class="tag">Join an event</span>
+    <h1>Enter your event code</h1>
+    <form id="cf" autocomplete="off">
+      <div class="field">
+        <input id="ci" maxlength="10" placeholder="Event code" autocapitalize="characters" aria-label="Event code">
+      </div>
+      <button class="submit" id="cb" type="submit" disabled>Join</button>
+    </form>
+    <p id="cmsg"></p>
+  </section>
+
   <section id="wait" class="card center">
     <div class="dots"><span></span><span></span><span></span></div>
     <h2>Waiting for the host</h2>
@@ -111,6 +128,10 @@ const $ = id => document.getElementById(id);
 
 $('brand').textContent = BRAND;
 document.title = BRAND;
+
+/* The event code comes from the link (?e=CODE). Each event has its own questions and answers. */
+const eventCode = String(new URLSearchParams(location.search).get('e') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+const evPath = p => 'events/' + eventCode + '/' + p;
 
 /* ===== PROFANITY FILTER (same block in index.html and present.html) ===== */
 // Whole words. Endings such as -s, -ed, -ing are also caught.
@@ -170,7 +191,7 @@ let cur = null;      // current question {qid, text, max}
 let mine = [];       // this person's answers for the current question
 let sending = false;
 
-function storeKey() { return 'wc2_' + cur.qid + '_' + (cur.round || 0); }
+function storeKey() { return 'wc3_' + eventCode + '_' + cur.qid + '_' + (cur.round || 0); }
 function loadMine() {
   try { const a = JSON.parse(localStorage.getItem(storeKey()) || '[]'); return Array.isArray(a) ? a : []; }
   catch (e) { return []; }
@@ -187,6 +208,7 @@ function toast(msg) {
 }
 
 function show(which) {
+  $('codecard').hidden = which !== 'code';
   $('wait').hidden = which !== 'wait';
   $('live').hidden = which !== 'live';
 }
@@ -221,7 +243,8 @@ function refresh() {
   else hint.textContent = 'Add as many answers as you like.';
 }
 
-db.ref('current').on('value', snap => {
+function start() {
+db.ref(evPath('current')).on('value', snap => {
   const c = snap.val();
   if (!c || !c.text) { cur = null; show('wait'); return; }
   const changed = !cur || cur.qid !== c.qid || (cur.round || 0) !== (c.round || 0);
@@ -236,6 +259,7 @@ db.ref('current').on('value', snap => {
   renderMine();
   refresh();
 });
+}
 
 $('w').addEventListener('input', () => {
   $('cnt').textContent = $('w').value.length + '/30';
@@ -254,7 +278,7 @@ $('f').addEventListener('submit', e => {
   const qid = cur.qid;
   sending = true;
   refresh();
-  db.ref('answers/' + qid).push({ w: word, t: firebase.database.ServerValue.TIMESTAMP })
+  db.ref(evPath('answers/' + qid)).push({ w: word, t: firebase.database.ServerValue.TIMESTAMP })
     .then(() => {
       sending = false;
       if (!cur || cur.qid !== qid) return;
@@ -273,6 +297,37 @@ $('f').addEventListener('submit', e => {
       toast('Could not send. Check your internet and try again.');
     });
 });
+
+/* ---------- joining an event ---------- */
+function showCodeEntry(msg) {
+  show('code');
+  $('cmsg').textContent = msg || '';
+  $('cmsg').className = msg ? 'err' : '';
+  $('ci').focus();
+}
+$('ci').addEventListener('input', () => {
+  const v = $('ci').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  $('ci').value = v;
+  $('cb').disabled = v.length < 3;
+});
+$('cf').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('ci').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (v.length >= 3) location.search = '?e=' + v;
+});
+
+if (!eventCode) {
+  showCodeEntry();
+} else {
+  db.ref('eventIndex/' + eventCode).once('value')
+    .then(s => {
+      if (!s.exists()) { showCodeEntry('We could not find the event "' + eventCode + '". Please check the code and try again.'); return; }
+      const m = s.val() || {};
+      if (m.name) { $('brand').textContent = m.name; document.title = m.name; }
+      start();
+    })
+    .catch(() => showCodeEntry('Could not connect. Please check your internet and try again.'));
+}
 </script>
 </body>
 </html>

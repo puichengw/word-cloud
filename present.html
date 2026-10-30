@@ -115,6 +115,36 @@
   .link:hover { text-decoration:underline; }
   .link.danger { color:#dc2626; }
 
+  .jc { background:rgba(255,255,255,.2); padding:5px 14px; border-radius:10px; font-weight:600; white-space:nowrap; }
+  .jc[hidden] { display:none; }
+  .jc b { font-size:1.25em; letter-spacing:.08em; margin-left:4px; }
+  .tag.ev { background:#111827; color:#fff; }
+  .ecode { flex:none; min-width:68px; text-align:center; background:#eef2ff; color:var(--blue); font-weight:800; letter-spacing:.06em; padding:8px 10px; border-radius:10px; font-size:.9rem; }
+  .sheet input[type=text], .sheet select { width:100%; font:500 1rem Inter,system-ui,sans-serif; padding:13px 14px; border:2px solid var(--line); border-radius:12px; outline:none; color:var(--ink); background:#fff; }
+  .sheet input[type=text]:focus, .sheet select:focus { border-color:var(--blue); box-shadow:0 0 0 4px rgba(59,91,253,.15); }
+  #evc { text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+  .evmsg { margin:14px 0 0; padding:12px 14px; border-radius:12px; background:#fef3c7; color:#92400e; font-weight:600; font-size:.92rem; }
+  .evmsg[hidden] { display:none; }
+  #evlist { list-style:none; margin:16px 0 0; padding:0; }
+  #evlist li { display:flex; align-items:center; gap:12px; padding:12px; border:2px solid var(--line); border-radius:14px; margin-bottom:10px; }
+  #evempty { margin:16px 0 0; padding:18px; border:2px dashed var(--line); border-radius:14px; color:var(--mute); text-align:center; }
+  #evempty[hidden] { display:none; }
+
+  #login { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg,#3b5bfd 0%,#6d4bfd 100%); }
+  #login[hidden] { display:none; }
+  #lcheck { color:#fff; font-weight:600; opacity:.85; }
+  #lcheck[hidden] { display:none; }
+  .lcard { width:100%; max-width:400px; background:#fff; border-radius:22px; padding:32px 28px; box-shadow:0 30px 70px rgba(0,0,0,.3); }
+  .lcard[hidden] { display:none; }
+  .lbrand { font-weight:800; color:var(--blue); font-size:.9rem; letter-spacing:.02em; }
+  .lcard h2 { margin:10px 0 6px; font-size:1.5rem; font-weight:800; letter-spacing:-.02em; }
+  .lcard p { margin:0 0 20px; color:var(--mute); line-height:1.5; font-size:.95rem; }
+  .lcard input { width:100%; font:500 1rem Inter,system-ui,sans-serif; padding:14px; border:2px solid var(--line); border-radius:12px; outline:none; margin-bottom:12px; color:var(--ink); }
+  .lcard input:focus { border-color:var(--blue); box-shadow:0 0 0 4px rgba(59,91,253,.15); }
+  .lcard .primary { width:100%; margin-top:4px; }
+  .lcard .primary:disabled { background:#cfd6f7; cursor:default; }
+  #lerr { color:#dc2626; font-size:.9rem; font-weight:600; margin-top:12px; min-height:1.2em; }
+
   #toast { position:fixed; left:50%; top:84px; transform:translate(-50%,-12px); background:#111827; color:#fff; padding:11px 20px; border-radius:999px; font-size:.95rem; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:60; max-width:92vw; text-align:center; }
   #toast.on { opacity:1; transform:translate(-50%,0); }
 
@@ -134,13 +164,13 @@
 <body>
 
 <div id="join">
-  <div class="jl"><span class="jt">Join at</span><span id="jurl"></span></div>
+  <div class="jl"><span class="jt">Join at</span><span id="jurl"></span><span class="jc" id="jcodewrap" hidden>Code <b id="jcode"></b></span></div>
   <div class="jr"><b id="total">0</b> responses</div>
 </div>
 
 <div id="stage">
   <div id="main">
-    <div class="tags"><span class="tag" id="qtag">Word cloud</span><span class="tag lock" id="lockb" hidden>Answers closed</span></div>
+    <div class="tags"><span class="tag ev" id="evname" hidden></span><span class="tag" id="qtag">Word cloud</span><span class="tag lock" id="lockb" hidden>Answers closed</span></div>
     <h1 id="qshow"></h1>
     <div id="cloudwrap">
       <div id="cloud"></div>
@@ -198,8 +228,32 @@
       <button class="link" id="csv" type="button">Download results (CSV)</button>
       <button class="link" id="pf" type="button">Profanity filter: On</button>
       <button class="link" id="pause" type="button">Show waiting screen</button>
-      <button class="link danger" id="reset" type="button">Start a new session (delete everything)</button>
+      <button class="link" id="sw" type="button">Switch event</button>
+      <button class="link" id="so" type="button">Sign out</button>
+      <button class="link danger" id="reset" type="button">Reset this event (delete all its questions and answers)</button>
     </div>
+  </div>
+</div>
+
+<!-- Events dialog -->
+<div class="modal" id="events" hidden>
+  <div class="sheet wide">
+    <h2>Your events</h2>
+    <p class="sub">Each event has its own code, questions and results, so several can run at the same time. Open one to run it, or create a new one.</p>
+    <div class="evmsg" id="evmsg" hidden></div>
+    <ul id="evlist"></ul>
+    <div id="evempty">No events yet. Create your first one below.</div>
+    <div class="addbox">
+      <label for="evn">New event name</label>
+      <input type="text" id="evn" maxlength="60" placeholder="e.g. Time Management - Batch 3" autocomplete="off">
+      <label for="evc">Event code (optional)</label>
+      <input type="text" id="evc" maxlength="12" placeholder="Leave empty to get one automatically" autocomplete="off">
+      <p class="tip">Letters and numbers only, 3 to 10 characters. Participants use this code to join.</p>
+      <label for="evsrc">Copy questions from</label>
+      <select id="evsrc"><option value="">Start with no questions</option></select>
+      <div class="btns"><button class="primary" id="evcreate" type="button">Create event</button></div>
+    </div>
+    <div class="foot"><button class="link" id="evso" type="button">Sign out</button></div>
   </div>
 </div>
 
@@ -214,8 +268,23 @@
 
 <div id="toast"></div>
 
+<!-- Presenter sign-in -->
+<div id="login">
+  <div id="lcheck">Loading...</div>
+  <form class="lcard" id="lf" hidden>
+    <div class="lbrand">Live Word Cloud</div>
+    <h2>Presenter sign in</h2>
+    <p>Only you can control the questions. Participants do not need to sign in.</p>
+    <input type="email" id="lem" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="lpw" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary" type="submit" id="lbtn">Sign in</button>
+    <div id="lerr" role="alert"></div>
+  </form>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const firebaseConfig = {
@@ -233,6 +302,11 @@ const db = firebase.database();
 const TS = firebase.database.ServerValue.TIMESTAMP;
 const $ = id => document.getElementById(id);
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+/* Each event keeps its own questions and answers under events/<CODE>/ */
+let eventCode = null;
+const edb = { ref(p) { return p ? db.ref('events/' + eventCode + '/' + p) : db.ref('events/' + eventCode); } };
+function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10); }
 
 /* ---------- state ---------- */
 let list = [];                       // all questions, in order
@@ -336,13 +410,16 @@ $('mqx').addEventListener('click', closeQ);
 $('mq').addEventListener('mousedown', e => { if (e.target === $('mq')) closeQ(); });
 
 /* ---------- join link + QR ---------- */
-const joinUrl = location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/, '');
-$('jurl').textContent = joinUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+const joinBase = location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/, '');
+$('jurl').textContent = joinBase.replace(/^https?:\/\//, '').replace(/\/$/, '');
 if (!/^https?:$/.test(location.protocol)) $('note').hidden = false;
-try {
-  new QRCode($('qr'), { text: joinUrl, width: 196, height: 196, correctLevel: QRCode.CorrectLevel.M });
-} catch (e) {
-  $('qr').textContent = '(QR code could not load)';
+function buildQr() {
+  $('qr').innerHTML = '';
+  try {
+    new QRCode($('qr'), { text: joinBase + '?e=' + eventCode, width: 196, height: 196, correctLevel: QRCode.CorrectLevel.M });
+  } catch (e) {
+    $('qr').textContent = '(QR code could not load)';
+  }
 }
 
 /* ---------- toolbar behaviour ---------- */
@@ -377,7 +454,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- going live / moving between questions ---------- */
 function goLive(q) {
-  db.ref('current').set({ qid: q.qid, text: q.text, max: q.max, round: q.round || 0, open: q.open !== false }).catch(fail);
+  edb.ref('current').set({ qid: q.qid, text: q.text, max: q.max, round: q.round || 0, open: q.open !== false }).catch(fail);
 }
 function step(d) {
   if (!list.length) { toast('Add a question first.'); openQ(); return; }
@@ -394,7 +471,7 @@ $('bL').addEventListener('click', () => {
   const upd = {};
   upd['questions/' + curQid + '/open'] = open;
   upd['current/open'] = open;
-  db.ref().update(upd).then(() => toast(open ? 'Answers are open again' : 'Answers are closed')).catch(fail);
+  edb.ref().update(upd).then(() => toast(open ? 'Answers are open again' : 'Answers are closed')).catch(fail);
 });
 
 $('bC').addEventListener('click', () => {
@@ -404,7 +481,7 @@ $('bC').addEventListener('click', () => {
     upd['answers/' + qid] = null;
     upd['questions/' + qid + '/round'] = round;
     upd['current/round'] = round;
-    db.ref().update(upd).catch(fail);
+    edb.ref().update(upd).catch(fail);
   });
 });
 
@@ -445,14 +522,14 @@ $('pub').addEventListener('click', () => {
     upd['questions/' + editingQid + '/text'] = text;
     upd['questions/' + editingQid + '/max'] = maxSel;
     if (editingQid === curQid) { upd['current/text'] = text; upd['current/max'] = maxSel; }
-    db.ref().update(upd).then(() => { endEdit(); toast('Question updated'); }).catch(fail);
+    edb.ref().update(upd).then(() => { endEdit(); toast('Question updated'); }).catch(fail);
     return;
   }
   let order = list.reduce((m, q) => Math.max(m, q.order), 0) + 1;
   lines.forEach(text => {
     upd['questions/' + newId()] = { text, max: maxSel, order: order++, open: true, round: 0, t: TS };
   });
-  db.ref().update(upd).then(() => {
+  edb.ref().update(upd).then(() => {
     $('qin').value = '';
     toast(lines.length === 1 ? 'Question added' : lines.length + ' questions added');
   }).catch(fail);
@@ -465,7 +542,7 @@ function move(qid, d) {
   const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
   const upd = {};
   arr.forEach((q, n) => { upd['questions/' + q.qid + '/order'] = n + 1; });
-  db.ref().update(upd).catch(fail);
+  edb.ref().update(upd).catch(fail);
 }
 function delQ(q) {
   ask('Delete this question?', '"' + q.text + '" and all of its answers will be deleted.', 'Delete', () => {
@@ -473,7 +550,7 @@ function delQ(q) {
     upd['questions/' + q.qid] = null;
     upd['answers/' + q.qid] = null;
     if (q.qid === curQid) upd['current'] = null;
-    db.ref().update(upd).catch(fail);
+    edb.ref().update(upd).catch(fail);
   });
 }
 
@@ -556,18 +633,18 @@ $('csv').addEventListener('click', () => {
   const blob = new Blob([buildCsv()], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'word-cloud-results.csv';
+  a.download = 'word-cloud-results-' + eventCode + '.csv';
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);
 });
 $('pause').addEventListener('click', () => {
-  db.ref('current').remove().then(() => { closeQ(); toast('Participants now see the waiting screen'); }).catch(fail);
+  edb.ref('current').remove().then(() => { closeQ(); toast('Participants now see the waiting screen'); }).catch(fail);
 });
 $('reset').addEventListener('click', () => {
-  ask('Start a new session?', 'ALL questions and ALL answers will be permanently deleted. Download the CSV first if you need the results.', 'Delete everything', () => {
-    db.ref().update({ questions: null, answers: null, current: null }).then(() => toast('Everything was cleared')).catch(fail);
+  ask('Reset this event?', 'ALL questions and ALL answers in this event will be permanently deleted. Other events are not affected. Download the CSV first if you need the results.', 'Delete everything', () => {
+    edb.ref().update({ questions: null, answers: null, current: null }).then(() => toast('Everything was cleared')).catch(fail);
   });
 });
 
@@ -616,7 +693,9 @@ function refreshHeader() {
   $('bN').disabled = list.length === 0 || i === list.length - 1;
 }
 
-db.ref('current').on('value', snap => {
+/* Data starts flowing only after the presenter has signed in (see "presenter sign-in" below). */
+function startData() {
+edb.ref('current').on('value', snap => {
   const c = snap.val();
   gotCurrent = true;
   if (!c || !c.text) {
@@ -629,7 +708,7 @@ db.ref('current').on('value', snap => {
   recompute(); refreshHeader(); renderList(); init();
 });
 
-db.ref('questions').on('value', snap => {
+edb.ref('questions').on('value', snap => {
   const arr = [];
   snap.forEach(ch => {
     const v = ch.val();
@@ -641,10 +720,192 @@ db.ref('questions').on('value', snap => {
   refreshHeader(); renderList(); scheduleRender(); init();
 });
 
-db.ref('answers').on('value', snap => {
+edb.ref('answers').on('value', snap => {
   allData = snap.val();
   recompute(); renderList();
 });
+}
+
+/* ---------- events (several can run at the same time) ---------- */
+const randCode = () => {
+  const c = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 5; i++) s += c[Math.floor(Math.random() * c.length)];
+  return s;
+};
+let eventsListening = false;
+let eventIndexData = {};
+
+function evMsg(text) { const m = $('evmsg'); m.textContent = text || ''; m.hidden = !text; }
+
+function openEvent(code, meta) {
+  eventCode = code;
+  try { history.replaceState(null, '', location.pathname + '?e=' + code); } catch (e) {}
+  $('events').hidden = true;
+  $('jcode').textContent = code;
+  $('jcodewrap').hidden = false;
+  const name = (meta && meta.name) || code;
+  $('evname').textContent = name;
+  $('evname').hidden = false;
+  document.title = name + ' - Presenter';
+  buildQr();
+  startData();
+}
+
+function renderEvents() {
+  const ul = $('evlist');
+  ul.innerHTML = '';
+  const rows = Object.keys(eventIndexData).map(c => {
+    const m = eventIndexData[c] || {};
+    return { code: c, name: m.name || c, created: m.created || 0 };
+  });
+  rows.sort((a, b) => b.created - a.created);
+  $('evempty').hidden = rows.length > 0;
+  rows.forEach(r => {
+    const li = document.createElement('li');
+    const code = document.createElement('span');
+    code.className = 'ecode';
+    code.textContent = r.code;
+    const body = document.createElement('div');
+    body.className = 'qb';
+    const t = document.createElement('div');
+    t.className = 'qt';
+    t.textContent = r.name;
+    body.appendChild(t);
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'show';
+    open.textContent = 'Open';
+    open.addEventListener('click', () => openEvent(r.code, eventIndexData[r.code]));
+    acts.appendChild(open);
+    acts.appendChild(ib(P_TRASH, 'Delete event', () => delEvent(r)));
+    li.appendChild(code);
+    li.appendChild(body);
+    li.appendChild(acts);
+    ul.appendChild(li);
+  });
+  const sel = $('evsrc');
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">Start with no questions</option>';
+  rows.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.code;
+    o.textContent = r.name + ' (' + r.code + ')';
+    sel.appendChild(o);
+  });
+  sel.value = keep;
+}
+
+function showEvents(message) {
+  evMsg(message || '');
+  $('events').hidden = false;
+  if (!eventsListening) {
+    eventsListening = true;
+    db.ref('eventIndex').on('value', snap => { eventIndexData = snap.val() || {}; renderEvents(); });
+  }
+}
+
+function delEvent(r) {
+  ask('Delete this event?', '"' + r.name + '" (' + r.code + ') and all of its questions and answers will be permanently deleted.', 'Delete event', () => {
+    const upd = {};
+    upd['eventIndex/' + r.code] = null;
+    upd['events/' + r.code] = null;
+    db.ref().update(upd).catch(fail);
+  });
+}
+
+function afterSignIn() {
+  const code = normCode(new URLSearchParams(location.search).get('e'));
+  if (!code) { showEvents(); return; }
+  db.ref('eventIndex/' + code).once('value')
+    .then(s => {
+      if (s.exists()) openEvent(code, s.val());
+      else showEvents('Event "' + code + '" was not found. Pick one below or create a new one.');
+    })
+    .catch(() => showEvents('Could not load the event. Check your internet connection.'));
+}
+
+$('evcreate').addEventListener('click', async () => {
+  const name = $('evn').value.trim();
+  const typed = $('evc').value.trim();
+  let code = normCode(typed);
+  evMsg('');
+  if (!name) { evMsg('Please give the event a name.'); $('evn').focus(); return; }
+  if (typed && code.length < 3) { evMsg('The event code needs 3 to 10 letters or numbers.'); $('evc').focus(); return; }
+  $('evcreate').disabled = true;
+  try {
+    if (code) {
+      const s = await db.ref('eventIndex/' + code).once('value');
+      if (s.exists()) { evMsg('That code is already used by another event. Please choose a different code.'); return; }
+    } else {
+      for (let i = 0; i < 8 && !code; i++) {
+        const c = randCode();
+        const s = await db.ref('eventIndex/' + c).once('value');
+        if (!s.exists()) code = c;
+      }
+      if (!code) { evMsg('Could not make a code. Please try again.'); return; }
+    }
+    const upd = {};
+    upd['eventIndex/' + code] = { name, created: TS };
+    const src = $('evsrc').value;
+    if (src) {
+      const qs = await db.ref('events/' + src + '/questions').once('value');
+      const arr = [];
+      qs.forEach(ch => { const v = ch.val(); if (v && v.text) arr.push(v); });
+      arr.sort((a, b) => (a.order || 0) - (b.order || 0));
+      arr.forEach((v, i) => {
+        upd['events/' + code + '/questions/' + newId()] = { text: v.text, max: v.max, order: i + 1, open: true, round: 0, t: TS };
+      });
+    }
+    await db.ref().update(upd);
+    $('evn').value = ''; $('evc').value = '';
+    openEvent(code, { name });
+  } catch (e) {
+    evMsg('Could not create the event. Check your internet connection and try again.');
+  } finally {
+    $('evcreate').disabled = false;
+  }
+});
+$('sw').addEventListener('click', () => { location.href = location.pathname; });
+$('evso').addEventListener('click', () => { firebase.auth().signOut(); });
+
+/* ---------- presenter sign-in ---------- */
+let started = false;
+function friendlyAuthError(code) {
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+    case 'auth/invalid-login-credentials': return 'Wrong email or password. Please try again.';
+    case 'auth/invalid-email': return 'That does not look like an email address.';
+    case 'auth/too-many-requests': return 'Too many attempts. Please wait a few minutes and try again.';
+    case 'auth/network-request-failed': return 'No internet connection. Please check and try again.';
+    case 'auth/operation-not-allowed': return 'Email sign-in is not switched on in Firebase yet.';
+    default: return 'Could not sign in (' + (code || 'unknown error') + ').';
+  }
+}
+firebase.auth().onAuthStateChanged(user => {
+  $('lcheck').hidden = true;
+  if (user) {
+    $('login').hidden = true;
+    if (!started) { started = true; afterSignIn(); }
+  } else {
+    if (started) { location.reload(); return; }
+    $('login').hidden = false;
+    $('lf').hidden = false;
+  }
+});
+$('lf').addEventListener('submit', e => {
+  e.preventDefault();
+  $('lerr').textContent = '';
+  $('lbtn').disabled = true;
+  firebase.auth().signInWithEmailAndPassword($('lem').value.trim(), $('lpw').value)
+    .catch(err => { $('lerr').textContent = friendlyAuthError(err && err.code); })
+    .then(() => { $('lbtn').disabled = false; });
+});
+$('so').addEventListener('click', () => { firebase.auth().signOut(); });
 
 /* remove one word (click it in the cloud) */
 function removeWord(word) {
@@ -654,7 +915,7 @@ function removeWord(word) {
   ask('Remove "' + cap(word) + '"?',
       keys.length + (keys.length === 1 ? ' answer' : ' answers') + ' with this word will be removed from the cloud.',
       'Remove',
-      () => { keys.forEach(k => db.ref('answers/' + qid + '/' + k).remove().catch(fail)); });
+      () => { keys.forEach(k => edb.ref('answers/' + qid + '/' + k).remove().catch(fail)); });
 }
 
 /* ---------- word cloud ---------- */
